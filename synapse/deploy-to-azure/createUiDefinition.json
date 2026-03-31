@@ -4,7 +4,9 @@
   "version": "0.1.2-preview",
   "parameters": {
     "config": {
+      "isWizard": true,
       "basics": {
+		"description": "PracticePro 365 - Azure Synapse Link Setup\n\nDeploys the required Azure infrastructure for the PracticePro 365 Synapse Link integration.",		
         "subscription": {
           "resourceProviders": [
             "Microsoft.Storage",
@@ -35,10 +37,8 @@
       {
         "name": "infoBox",
         "type": "Microsoft.Common.InfoBox",
-        "visible": true,
+        "visible": false,
         "options": {
-          "text": "**PracticePro 365 - Azure Synapse Link Setup**\n\nDeploys the required Azure infrastructure for Synapse Link for Dataverse.\n\nMinimum required permissions for the deploying user: Owner OR Contributor + User Access Administrator at the subscription level.",
-          "style": "Info"
         }
       }
     ],
@@ -52,7 +52,7 @@
             "type": "Microsoft.Common.InfoBox",
             "visible": true,
             "options": {
-              "text": "Enter a short company identifier (3-6 lowercase letters). This will be used to generate globally unique resource names following within Azure.",
+              "text": "Enter a short company identifier (3-6 lowercase letters). This will be used to generate globally unique Azure resource names.",
               "style": "Info"
             }
           },
@@ -95,7 +95,7 @@
             "type": "Microsoft.Common.InfoBox",
             "visible": true,
             "options": {
-              "text": "Provide the **PracticePro 365 administrator account**. This account will receive required Azure role assignments and be set as the Synapse administrator.",
+              "text": "Provide the PracticePro 365 administrator account. This account will receive the required Azure role assignments within the subscription and be set as the Synapse Workspace administrator.",
               "style": "Warning"
             }
           },
