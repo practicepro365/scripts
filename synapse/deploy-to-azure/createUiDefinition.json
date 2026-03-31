@@ -1,0 +1,187 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "basics": {
+        "subscription": {
+          "resourceProviders": [
+            "Microsoft.Storage",
+            "Microsoft.Synapse",
+            "Microsoft.Sql"
+          ]
+        },
+        "resourceGroup": {
+          "allowExisting": true
+        },
+        "location": {
+          "visible": true,
+          "allowedValues": [
+            "eastus",
+            "eastus2",
+            "westus2",
+            "centralus",
+            "northeurope",
+            "westeurope",
+            "uksouth",
+            "southeastasia",
+            "australiaeast"
+          ]
+        }
+      }
+    },
+    "basics": [
+      {
+        "name": "infoBox",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": true,
+        "options": {
+          "text": "This template deploys the Azure infrastructure required for Azure Synapse Link for Dataverse (PracticePro 365). The deploying user must have Owner or Contributor + User Access Administrator on the subscription or resource group. Resource group naming convention: rg-practicepro-analytics-{environment}",
+          "style": "Info"
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "naming",
+        "label": "Company & Environment",
+        "elements": [
+          {
+            "name": "companyIdInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "text": "Enter a short company identifier (3-5 lowercase letters). This will be used to generate globally unique resource names following PracticePro 365 naming conventions.",
+              "style": "Info"
+            }
+          },
+          {
+            "name": "companyId",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Company Identifier",
+            "placeholder": "Example: bofa (Bank of America)",
+            "toolTip": "3 to 5 lowercase letters that identify the company. Examples: bofa, contso, frstl",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-z]{3,5}$",
+              "validationMessage": "Must be 3 to 5 lowercase letters only (no numbers, spaces, or special characters)."
+            }
+          },
+          {
+            "name": "deployEnvironment",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Environment",
+            "defaultValue": "prod",
+            "toolTip": "Deployment environment. Leave as 'prod' unless instructed otherwise by the PracticePro 365 team.",
+            "constraints": {
+              "required": true,
+              "allowedValues": [
+                { "label": "prod", "value": "prod" },
+                { "label": "dev", "value": "dev" },
+                { "label": "uat", "value": "uat" },
+                { "label": "test", "value": "test" }
+              ]
+            }
+          },
+          {
+            "name": "namingPreview",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "text": "Resources will be created with the following names based on your input:\n• Storage Account: st{companyId}pp365synapse{env}\n• Synapse Workspace: synw-{companyId}pp365-{env}\n• File System: dataverse-practicepro-slink",
+              "style": "Info"
+            }
+          }
+        ]
+      },
+      {
+        "name": "userConfig",
+        "label": "User Account",
+        "elements": [
+          {
+            "name": "userAccountInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "text": "Provide the user account that will own the deployed resources. This account will be assigned Owner, User Access Administrator, and Storage Blob Data Owner roles on the resource group WITHOUT ABAC conditions, and will be set as the Synapse Entra administrator.",
+              "style": "Warning"
+            }
+          },
+          {
+            "name": "userUpn",
+            "type": "Microsoft.Common.TextBox",
+            "label": "User Email (UPN)",
+            "placeholder": "admin@contoso.com",
+            "toolTip": "The email (User Principal Name) of the PracticePro 365 admin account.",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+              "validationMessage": "Must be a valid email address (e.g., admin@contoso.com)."
+            }
+          },
+          {
+            "name": "objectIdInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "text": "To find the Object ID: Open the Azure Portal → Microsoft Entra ID → Users → search for the user above → click their name → copy the 'Object ID' from the Overview page.",
+              "style": "Info"
+            }
+          },
+          {
+            "name": "userObjectId",
+            "type": "Microsoft.Common.TextBox",
+            "label": "User Object ID",
+            "placeholder": "00000000-0000-0000-0000-000000000000",
+            "toolTip": "The Entra ID Object ID (GUID) of the user. Found in Entra ID → Users → user profile → Object ID.",
+            "constraints": {
+              "required": true,
+              "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "validationMessage": "Must be a valid GUID (e.g., 00000000-0000-0000-0000-000000000000)."
+            }
+          }
+        ]
+      },
+      {
+        "name": "sqlConfig",
+        "label": "SQL Configuration",
+        "elements": [
+          {
+            "name": "sqlPasswordInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "text": "The Synapse workspace requires a SQL administrator password. This is used for SQL-based access (in addition to Entra ID authentication which is also enabled).",
+              "style": "Info"
+            }
+          },
+          {
+            "name": "sqlAdminPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "SQL Admin Password",
+              "confirmPassword": "Confirm Password"
+            },
+            "toolTip": "Password for the SQL administrator account (sqladminuser).",
+            "constraints": {
+              "required": true,
+              "regex": "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).{12,128}$",
+              "validationMessage": "Must be 12-128 characters with at least one uppercase, one lowercase, one number, and one special character (!@#$%^&*)."
+            },
+            "options": {
+              "hideConfirmation": false
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "companyId": "[steps('naming').companyId]",
+      "deployEnvironment": "[steps('naming').deployEnvironment]",
+      "userUpn": "[steps('userConfig').userUpn]",
+      "userObjectId": "[steps('userConfig').userObjectId]",
+      "sqlAdminPassword": "[steps('sqlConfig').sqlAdminPassword]"
+    }
+  }
+}

@@ -1,0 +1,265 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "2351672549377774969"
+    }
+  },
+  "parameters": {
+    "companyId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 5,
+      "metadata": {
+        "description": "Short company identifier (3-5 lowercase letters). Example: Bank of America → bofa"
+      }
+    },
+    "deployEnvironment": {
+      "type": "string",
+      "defaultValue": "prod",
+      "allowedValues": [
+        "prod",
+        "dev",
+        "uat",
+        "test"
+      ],
+      "metadata": {
+        "description": "Deployment environment. Defaults to prod. Change only when instructed by PracticePro 365 team."
+      }
+    },
+    "userUpn": {
+      "type": "string",
+      "metadata": {
+        "description": "User email (UPN). Example: admin@contoso.com"
+      }
+    },
+    "userObjectId": {
+      "type": "string",
+      "metadata": {
+        "description": "User Object ID (GUID). Find it in Entra ID → Users → select user → Object ID field on the Overview page."
+      }
+    },
+    "sqlAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Synapse SQL administrator account."
+      }
+    }
+  },
+  "variables": {
+    "storageAccountName": "[toLower(format('st{0}pp365synapse{1}', parameters('companyId'), parameters('deployEnvironment')))]",
+    "synapseWorkspaceName": "[toLower(format('synw-{0}pp365-{1}', parameters('companyId'), parameters('deployEnvironment')))]",
+    "fileSystemName": "dataverse-practicepro-slink",
+    "sqlAdminLogin": "sqladminuser",
+    "managedRgName": "[format('synw-managed-{0}', variables('synapseWorkspaceName'))]",
+    "roleOwner": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635",
+    "roleUserAccessAdmin": "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9",
+    "roleStorageBlobDataContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+    "roleStorageBlobDataOwner": "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, parameters('userObjectId'), variables('roleOwner'))]",
+      "properties": {
+        "principalId": "[parameters('userObjectId')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleOwner'))]",
+        "principalType": "User",
+        "description": "PracticePro 365 - Owner (no ABAC conditions)"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, parameters('userObjectId'), variables('roleUserAccessAdmin'))]",
+      "properties": {
+        "principalId": "[parameters('userObjectId')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleUserAccessAdmin'))]",
+        "principalType": "User",
+        "description": "PracticePro 365 - User Access Administrator (no ABAC conditions)"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[resourceGroup().location]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "properties": {
+        "isHnsEnabled": true,
+        "allowSharedKeyAccess": true,
+        "supportsHttpsTrafficOnly": true,
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', variables('storageAccountName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageAccountName'), 'default', variables('fileSystemName'))]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), parameters('userObjectId'), variables('roleStorageBlobDataContributor'))]",
+      "properties": {
+        "principalId": "[parameters('userObjectId')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleStorageBlobDataContributor'))]",
+        "principalType": "User"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), parameters('userObjectId'), variables('roleStorageBlobDataOwner'))]",
+      "properties": {
+        "principalId": "[parameters('userObjectId')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleStorageBlobDataOwner'))]",
+        "principalType": "User"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Synapse/workspaces",
+      "apiVersion": "2021-06-01",
+      "name": "[variables('synapseWorkspaceName')]",
+      "location": "[resourceGroup().location]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "azureADOnlyAuthentication": false,
+        "defaultDataLakeStorage": {
+          "accountUrl": "[format('https://{0}.dfs.{1}', variables('storageAccountName'), environment().suffixes.storage)]",
+          "filesystem": "[variables('fileSystemName')]"
+        },
+        "sqlAdministratorLogin": "[variables('sqlAdminLogin')]",
+        "sqlAdministratorLoginPassword": "[parameters('sqlAdminPassword')]",
+        "cspWorkspaceAdminProperties": {
+          "initialWorkspaceAdminObjectId": "[parameters('userObjectId')]"
+        },
+        "managedResourceGroupName": "[variables('managedRgName')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('storageAccountName'), 'default', variables('fileSystemName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Synapse/workspaces/administrators",
+      "apiVersion": "2021-06-01",
+      "name": "[format('{0}/{1}', variables('synapseWorkspaceName'), 'activeDirectory')]",
+      "properties": {
+        "administratorType": "ActiveDirectory",
+        "login": "[parameters('userUpn')]",
+        "sid": "[parameters('userObjectId')]",
+        "tenantId": "[tenant().tenantId]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Synapse/workspaces/azureADOnlyAuthentications",
+      "apiVersion": "2021-06-01",
+      "name": "[format('{0}/{1}', variables('synapseWorkspaceName'), 'default')]",
+      "properties": {
+        "azureADOnlyAuthentication": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Synapse/workspaces/firewallRules",
+      "apiVersion": "2021-06-01",
+      "name": "[format('{0}/{1}', variables('synapseWorkspaceName'), 'AllowAllWindowsAzureIps')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Synapse/workspaces/firewallRules",
+      "apiVersion": "2021-06-01",
+      "name": "[format('{0}/{1}', variables('synapseWorkspaceName'), 'AllowAllPublicIps')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "255.255.255.255"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('storageAccountName')]"
+    },
+    "storageAccountId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+    },
+    "synapseWorkspaceName": {
+      "type": "string",
+      "value": "[variables('synapseWorkspaceName')]"
+    },
+    "synapseWorkspaceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]"
+    },
+    "synapseDevEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName')), '2021-06-01').connectivityEndpoints.dev]"
+    },
+    "fileSystemName": {
+      "type": "string",
+      "value": "[variables('fileSystemName')]"
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[resourceGroup().name]"
+    },
+    "namingConvention": {
+      "type": "object",
+      "value": {
+        "storageAccount": "[variables('storageAccountName')]",
+        "synapseWorkspace": "[variables('synapseWorkspaceName')]",
+        "fileSystem": "[variables('fileSystemName')]",
+        "managedResourceGroup": "[variables('managedRgName')]"
+      }
+    }
+  }
+}
