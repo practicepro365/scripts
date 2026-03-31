@@ -37,7 +37,7 @@
         "type": "Microsoft.Common.InfoBox",
         "visible": true,
         "options": {
-          "text": "This template deploys the Azure infrastructure required for Azure Synapse Link for Dataverse (PracticePro 365). The deploying user must have Owner or Contributor + User Access Administrator on the subscription or resource group. Resource group naming convention: rg-practicepro-analytics-{environment}",
+          "text": "**PracticePro 365 - Azure Synapse Link Setup**\n\nDeploys the required Azure infrastructure for Synapse Link for Dataverse.\n\nMinimum required permissions for the deploying user: Owner OR Contributor + User Access Administrator at the subscription level.",
           "style": "Info"
         }
       }
@@ -52,7 +52,7 @@
             "type": "Microsoft.Common.InfoBox",
             "visible": true,
             "options": {
-              "text": "Enter a short company identifier (3-5 lowercase letters). This will be used to generate globally unique resource names following PracticePro 365 naming conventions.",
+              "text": "Enter a short company identifier (3-6 lowercase letters). This will be used to generate globally unique resource names following within Azure.",
               "style": "Info"
             }
           },
@@ -61,11 +61,11 @@
             "type": "Microsoft.Common.TextBox",
             "label": "Company Identifier",
             "placeholder": "Example: bofa (Bank of America)",
-            "toolTip": "3 to 5 lowercase letters that identify the company. Examples: bofa, contso, frstl",
+            "toolTip": "3 to 6 lowercase letters that identify the company. Examples: bofa, contso, frstl",
             "constraints": {
               "required": true,
-              "regex": "^[a-z]{3,5}$",
-              "validationMessage": "Must be 3 to 5 lowercase letters only (no numbers, spaces, or special characters)."
+              "regex": "^[a-z]{3,6}$",
+              "validationMessage": "Must be 3 to 6 lowercase letters only (no numbers, spaces, or special characters)."
             }
           },
           {
@@ -83,15 +83,6 @@
                 { "label": "test", "value": "test" }
               ]
             }
-          },
-          {
-            "name": "namingPreview",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": true,
-            "options": {
-              "text": "Resources will be created with the following names based on your input:\n• Storage Account: st{companyId}pp365synapse{env}\n• Synapse Workspace: synw-{companyId}pp365-{env}\n• File System: dataverse-practicepro-slink",
-              "style": "Info"
-            }
           }
         ]
       },
@@ -104,7 +95,7 @@
             "type": "Microsoft.Common.InfoBox",
             "visible": true,
             "options": {
-              "text": "Provide the user account that will own the deployed resources. This account will be assigned Owner, User Access Administrator, and Storage Blob Data Owner roles on the resource group WITHOUT ABAC conditions, and will be set as the Synapse Entra administrator.",
+              "text": "Provide the **PracticePro 365 administrator account**. This account will receive required Azure role assignments and be set as the Synapse administrator.",
               "style": "Warning"
             }
           },
@@ -152,7 +143,7 @@
             "type": "Microsoft.Common.InfoBox",
             "visible": true,
             "options": {
-              "text": "The Synapse workspace requires a SQL administrator password. This is used for SQL-based access (in addition to Entra ID authentication which is also enabled).",
+              "text": "A SQL administrator password is required only to complete the initial Synapse workspace deployment.\n\nAfter deployment, authentication is primarily handled through Microsoft Entra ID. You do not need to retain this password for day-to-day operations. If needed, the PracticePro 365 team can reset it later in Synapse workspace settings.",
               "style": "Info"
             }
           },
@@ -170,7 +161,7 @@
               "validationMessage": "Must be 12-128 characters with at least one uppercase, one lowercase, one number, and one special character (!@#$%^&*)."
             },
             "options": {
-              "hideConfirmation": false
+              "hideConfirmation": true
             }
           }
         ]
