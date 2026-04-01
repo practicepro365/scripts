@@ -42,6 +42,10 @@ var roleUserAccessAdmin = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 var roleStorageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 var roleStorageBlobDataOwner = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 
+// Synapse data-plane RBAC role ID for "Synapse Administrator"
+// This is a fixed well-known GUID across all Synapse workspaces
+var synapseAdministratorRoleId = '6e4bf58a-b8e1-4cc3-bbf9-d73143322b78'
+
 // ===========================
 // Resource Group RBAC
 // Owner + User Access Administrator WITHOUT ABAC conditions
@@ -184,6 +188,9 @@ resource synwEntraOnly 'Microsoft.Synapse/workspaces/azureADOnlyAuthentications@
 // ===========================
 // Firewall Rules
 // ===========================
+// Note: synwFirewallAllowAllPublic must be deployed before the deployment script below,
+// because the script container runs from Azure infrastructure and needs public access
+// to reach the Synapse data-plane endpoint.
 
 // Required for Dataverse Synapse Link
 resource synwFirewallAllowAzure 'Microsoft.Synapse/workspaces/firewallRules@2021-06-01' = {
@@ -203,6 +210,91 @@ resource synwFirewallAllowAllPublic 'Microsoft.Synapse/workspaces/firewallRules@
     startIpAddress: '0.0.0.0'
     endIpAddress: '255.255.255.255'
   }
+}
+
+// ===========================
+// Synapse RBAC - Deployment Script
+// Assigns the Synapse Administrator data-plane role to the user.
+// This cannot be done via ARM/Bicep directly because it requires calling
+// the Synapse data-plane API (https://{workspace}.dev.azuresynapse.net/rbac/...)
+// rather than the ARM control plane.
+// ===========================
+
+// Managed identity used by the deployment script to authenticate to Azure
+resource scriptIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-synapse-deploy-${synapseWorkspaceName}'
+  location: resourceGroup().location
+}
+
+// Grant the script identity Owner on this RG so it can call the Synapse data-plane RBAC API
+resource scriptIdentityOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, scriptIdentity.id, roleOwner)
+  properties: {
+    principalId: scriptIdentity.properties.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleOwner)
+    principalType: 'ServicePrincipal'
+    description: 'PracticePro 365 - Deployment script identity (cleanup after deploy)'
+  }
+}
+
+resource assignSynapseAdminRole 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  name: 'assignSynapseAdminRole'
+  location: resourceGroup().location
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${scriptIdentity.id}': {}
+    }
+  }
+  properties: {
+    azCliVersion: '2.59.0'
+    retentionInterval: 'PT1H'
+    timeout: 'PT10M'
+    scriptContent: '''
+      # Assign Synapse Administrator data-plane role (idempotent)
+      EXISTING=$(az synapse role assignment list \
+        --workspace-name "$SYNAPSE_WORKSPACE" \
+        --role "$SYNAPSE_ROLE_ID" \
+        --assignee-object-id "$USER_OBJECT_ID" \
+        --query "[0].id" -o tsv 2>/dev/null)
+
+      if [ -n "$EXISTING" ]; then
+        echo "Synapse Administrator role already assigned. Skipping."
+      else
+        az synapse role assignment create \
+          --workspace-name "$SYNAPSE_WORKSPACE" \
+          --role "$SYNAPSE_ROLE_ID" \
+          --assignee-object-id "$USER_OBJECT_ID" \
+          --assignee-principal-type User
+        echo "Synapse Administrator role assigned successfully."
+      fi
+
+      # Self-cleanup: remove this script identity's Owner role assignment and then
+      # delete the managed identity itself. The container's token remains valid until
+      # expiry even after the identity resource is deleted, so this is safe to do last.
+      echo "Cleaning up deployment script identity..."
+      az role assignment delete \
+        --assignee "$SCRIPT_IDENTITY_PRINCIPAL_ID" \
+        --role Owner \
+        --scope "$RESOURCE_GROUP_ID" 2>/dev/null || true
+      az identity delete --ids "$SCRIPT_IDENTITY_RESOURCE_ID" 2>/dev/null || true
+      echo "Cleanup complete."
+    '''
+    environmentVariables: [
+      { name: 'SYNAPSE_WORKSPACE', value: synapseWorkspaceName }
+      { name: 'USER_OBJECT_ID', value: userObjectId }
+      { name: 'SYNAPSE_ROLE_ID', value: synapseAdministratorRoleId }
+      { name: 'SCRIPT_IDENTITY_PRINCIPAL_ID', value: scriptIdentity.properties.principalId }
+      { name: 'SCRIPT_IDENTITY_RESOURCE_ID', value: scriptIdentity.id }
+      { name: 'RESOURCE_GROUP_ID', value: resourceGroup().id }
+    ]
+  }
+  dependsOn: [
+    synw
+    synwFirewallAllowAllPublic
+    scriptIdentityOwner
+  ]
 }
 
 // ===========================
