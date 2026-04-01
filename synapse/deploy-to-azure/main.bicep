@@ -233,7 +233,7 @@ resource scriptIdentityOwner 'Microsoft.Authorization/roleAssignments@2022-04-01
     principalId: scriptIdentity.properties.principalId
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleOwner)
     principalType: 'ServicePrincipal'
-    description: 'PracticePro 365 - Deployment script identity (cleanup after deploy)'
+    description: 'PracticePro 365 - Deployment script identity (auto-removed after retentionInterval)'
   }
 }
 
@@ -269,25 +269,11 @@ resource assignSynapseAdminRole 'Microsoft.Resources/deploymentScripts@2023-08-0
           --assignee-principal-type User
         echo "Synapse Administrator role assigned successfully."
       fi
-
-      # Self-cleanup: remove this script identity's Owner role assignment and then
-      # delete the managed identity itself. The container's token remains valid until
-      # expiry even after the identity resource is deleted, so this is safe to do last.
-      echo "Cleaning up deployment script identity..."
-      az role assignment delete \
-        --assignee "$SCRIPT_IDENTITY_PRINCIPAL_ID" \
-        --role Owner \
-        --scope "$RESOURCE_GROUP_ID" 2>/dev/null || true
-      az identity delete --ids "$SCRIPT_IDENTITY_RESOURCE_ID" 2>/dev/null || true
-      echo "Cleanup complete."
     '''
     environmentVariables: [
       { name: 'SYNAPSE_WORKSPACE', value: synapseWorkspaceName }
       { name: 'USER_OBJECT_ID', value: userObjectId }
       { name: 'SYNAPSE_ROLE_ID', value: synapseAdministratorRoleId }
-      { name: 'SCRIPT_IDENTITY_PRINCIPAL_ID', value: scriptIdentity.properties.principalId }
-      { name: 'SCRIPT_IDENTITY_RESOURCE_ID', value: scriptIdentity.id }
-      { name: 'RESOURCE_GROUP_ID', value: resourceGroup().id }
     ]
   }
   dependsOn: [

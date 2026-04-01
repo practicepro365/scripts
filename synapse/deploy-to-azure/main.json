@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "16569747022011433365"
+      "templateHash": "9824157254845064467"
     }
   },
   "parameters": {
@@ -237,7 +237,7 @@
         "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))), '2023-01-31').principalId]",
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleOwner'))]",
         "principalType": "ServicePrincipal",
-        "description": "PracticePro 365 - Deployment script identity (cleanup after deploy)"
+        "description": "PracticePro 365 - Deployment script identity (auto-removed after retentionInterval)"
       },
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName')))]"
@@ -259,7 +259,7 @@
         "azCliVersion": "2.59.0",
         "retentionInterval": "PT1H",
         "timeout": "PT10M",
-        "scriptContent": "      # Assign Synapse Administrator data-plane role (idempotent)\r\n      EXISTING=$(az synapse role assignment list \\\r\n        --workspace-name \"$SYNAPSE_WORKSPACE\" \\\r\n        --role \"$SYNAPSE_ROLE_ID\" \\\r\n        --assignee-object-id \"$USER_OBJECT_ID\" \\\r\n        --query \"[0].id\" -o tsv 2>/dev/null)\r\n\r\n      if [ -n \"$EXISTING\" ]; then\r\n        echo \"Synapse Administrator role already assigned. Skipping.\"\r\n      else\r\n        az synapse role assignment create \\\r\n          --workspace-name \"$SYNAPSE_WORKSPACE\" \\\r\n          --role \"$SYNAPSE_ROLE_ID\" \\\r\n          --assignee-object-id \"$USER_OBJECT_ID\" \\\r\n          --assignee-principal-type User\r\n        echo \"Synapse Administrator role assigned successfully.\"\r\n      fi\r\n\r\n      # Self-cleanup: remove this script identity's Owner role assignment and then\r\n      # delete the managed identity itself. The container's token remains valid until\r\n      # expiry even after the identity resource is deleted, so this is safe to do last.\r\n      echo \"Cleaning up deployment script identity...\"\r\n      az role assignment delete \\\r\n        --assignee \"$SCRIPT_IDENTITY_PRINCIPAL_ID\" \\\r\n        --role Owner \\\r\n        --scope \"$RESOURCE_GROUP_ID\" 2>/dev/null || true\r\n      az identity delete --ids \"$SCRIPT_IDENTITY_RESOURCE_ID\" 2>/dev/null || true\r\n      echo \"Cleanup complete.\"\r\n    ",
+        "scriptContent": "      # Assign Synapse Administrator data-plane role (idempotent)\r\n      EXISTING=$(az synapse role assignment list \\\r\n        --workspace-name \"$SYNAPSE_WORKSPACE\" \\\r\n        --role \"$SYNAPSE_ROLE_ID\" \\\r\n        --assignee-object-id \"$USER_OBJECT_ID\" \\\r\n        --query \"[0].id\" -o tsv 2>/dev/null)\r\n\r\n      if [ -n \"$EXISTING\" ]; then\r\n        echo \"Synapse Administrator role already assigned. Skipping.\"\r\n      else\r\n        az synapse role assignment create \\\r\n          --workspace-name \"$SYNAPSE_WORKSPACE\" \\\r\n          --role \"$SYNAPSE_ROLE_ID\" \\\r\n          --assignee-object-id \"$USER_OBJECT_ID\" \\\r\n          --assignee-principal-type User\r\n        echo \"Synapse Administrator role assigned successfully.\"\r\n      fi\r\n    ",
         "environmentVariables": [
           {
             "name": "SYNAPSE_WORKSPACE",
@@ -272,18 +272,6 @@
           {
             "name": "SYNAPSE_ROLE_ID",
             "value": "[variables('synapseAdministratorRoleId')]"
-          },
-          {
-            "name": "SCRIPT_IDENTITY_PRINCIPAL_ID",
-            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))), '2023-01-31').principalId]"
-          },
-          {
-            "name": "SCRIPT_IDENTITY_RESOURCE_ID",
-            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName')))]"
-          },
-          {
-            "name": "RESOURCE_GROUP_ID",
-            "value": "[resourceGroup().id]"
           }
         ]
       },
