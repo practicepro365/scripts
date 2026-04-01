@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "2351672549377774969"
+      "templateHash": "16569747022011433365"
     }
   },
   "parameters": {
@@ -58,7 +58,8 @@
     "roleOwner": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635",
     "roleUserAccessAdmin": "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9",
     "roleStorageBlobDataContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
-    "roleStorageBlobDataOwner": "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
+    "roleStorageBlobDataOwner": "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",
+    "synapseAdministratorRoleId": "6e4bf58a-b8e1-4cc3-bbf9-d73143322b78"
   },
   "resources": [
     {
@@ -220,6 +221,77 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))), variables('roleOwner'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))), '2023-01-31').principalId]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleOwner'))]",
+        "principalType": "ServicePrincipal",
+        "description": "PracticePro 365 - Deployment script identity (cleanup after deploy)"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "assignSynapseAdminRole",
+      "location": "[resourceGroup().location]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))))]": {}
+        }
+      },
+      "properties": {
+        "azCliVersion": "2.59.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT10M",
+        "scriptContent": "      # Assign Synapse Administrator data-plane role (idempotent)\r\n      EXISTING=$(az synapse role assignment list \\\r\n        --workspace-name \"$SYNAPSE_WORKSPACE\" \\\r\n        --role \"$SYNAPSE_ROLE_ID\" \\\r\n        --assignee-object-id \"$USER_OBJECT_ID\" \\\r\n        --query \"[0].id\" -o tsv 2>/dev/null)\r\n\r\n      if [ -n \"$EXISTING\" ]; then\r\n        echo \"Synapse Administrator role already assigned. Skipping.\"\r\n      else\r\n        az synapse role assignment create \\\r\n          --workspace-name \"$SYNAPSE_WORKSPACE\" \\\r\n          --role \"$SYNAPSE_ROLE_ID\" \\\r\n          --assignee-object-id \"$USER_OBJECT_ID\" \\\r\n          --assignee-principal-type User\r\n        echo \"Synapse Administrator role assigned successfully.\"\r\n      fi\r\n\r\n      # Self-cleanup: remove this script identity's Owner role assignment and then\r\n      # delete the managed identity itself. The container's token remains valid until\r\n      # expiry even after the identity resource is deleted, so this is safe to do last.\r\n      echo \"Cleaning up deployment script identity...\"\r\n      az role assignment delete \\\r\n        --assignee \"$SCRIPT_IDENTITY_PRINCIPAL_ID\" \\\r\n        --role Owner \\\r\n        --scope \"$RESOURCE_GROUP_ID\" 2>/dev/null || true\r\n      az identity delete --ids \"$SCRIPT_IDENTITY_RESOURCE_ID\" 2>/dev/null || true\r\n      echo \"Cleanup complete.\"\r\n    ",
+        "environmentVariables": [
+          {
+            "name": "SYNAPSE_WORKSPACE",
+            "value": "[variables('synapseWorkspaceName')]"
+          },
+          {
+            "name": "USER_OBJECT_ID",
+            "value": "[parameters('userObjectId')]"
+          },
+          {
+            "name": "SYNAPSE_ROLE_ID",
+            "value": "[variables('synapseAdministratorRoleId')]"
+          },
+          {
+            "name": "SCRIPT_IDENTITY_PRINCIPAL_ID",
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))), '2023-01-31').principalId]"
+          },
+          {
+            "name": "SCRIPT_IDENTITY_RESOURCE_ID",
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName')))]"
+          },
+          {
+            "name": "RESOURCE_GROUP_ID",
+            "value": "[resourceGroup().id]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName')))]",
+        "[resourceId('Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-synapse-deploy-{0}', variables('synapseWorkspaceName'))), variables('roleOwner')))]",
+        "[resourceId('Microsoft.Synapse/workspaces', variables('synapseWorkspaceName'))]",
+        "[resourceId('Microsoft.Synapse/workspaces/firewallRules', variables('synapseWorkspaceName'), 'AllowAllPublicIps')]"
       ]
     }
   ],
