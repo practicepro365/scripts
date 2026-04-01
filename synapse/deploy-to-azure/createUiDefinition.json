@@ -6,7 +6,7 @@
     "config": {
       "isWizard": true,
       "basics": {
-		"description": "**PracticePro 365 - Azure Synapse Link Setup**\n\nDeploys the required Azure infrastructure for the PracticePro 365 Synapse Link integration.",		
+      "description": "**PracticePro 365 - Azure Synapse Link Infrastructure**\n\nThis deployment creates all Azure resources required for Azure Synapse Link for Dataverse, including a resource group, ADLS Gen2 storage, and a Synapse Analytics workspace.\n\nThe deployment runs under **your own identity** - no credentials are shared with PracticePro 365.",
         "subscription": {
           "resourceProviders": [
             "Microsoft.Storage",
