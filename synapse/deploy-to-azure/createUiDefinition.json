@@ -6,7 +6,7 @@
     "config": {
       "isWizard": true,
       "basics": {
-		"description": "PracticePro 365 - Azure Synapse Link Setup\n\nDeploys the required Azure infrastructure for the PracticePro 365 Synapse Link integration.",		
+		"description": "**PracticePro 365 - Azure Synapse Link Setup**\n\nDeploys the required Azure infrastructure for the PracticePro 365 Synapse Link integration.",		
         "subscription": {
           "resourceProviders": [
             "Microsoft.Storage",
